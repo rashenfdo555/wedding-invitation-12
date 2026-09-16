@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "*.php", "use": "vercel-php@0.7.1" },
+    { "src": "admin/**/*.php", "use": "vercel-php@0.7.1" },
+    { "src": "intro/**/*.php", "use": "vercel-php@0.7.1" },
+    { "src": "invitation/**/*.php", "use": "vercel-php@0.7.1" },
+    { "src": "includes/**/*.php", "use": "vercel-php@0.7.1" },
+    { "src": "uploads/**/*", "use": "@vercel/static" },
+    { "src": "admin/assets/**/*", "use": "@vercel/static" },
+    { "src": "intro/assets/**/*", "use": "@vercel/static" },
+    { "src": "invitation/assets/**/*", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/uploads/(.*)", "dest": "/uploads/$1" },
+    { "src": "/admin/assets/(.*)", "dest": "/admin/assets/$1" },
+    { "src": "/intro/assets/(.*)", "dest": "/intro/assets/$1" },
+    { "src": "/invitation/assets/(.*)", "dest": "/invitation/assets/$1" },
+    { "src": "/(.*)", "dest": "/index.php" }
+  ]
+}
