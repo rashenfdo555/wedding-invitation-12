@@ -1,0 +1,210 @@
+<?php
+require_once '../includes/db.php';
+require_once '../includes/functions.php';
+
+// Get slug from URL
+$slug = $_GET['slug'] ?? '';
+if (empty($slug)) {
+    // Default to first invitation
+    $conn = getDBConnection();
+    $result = $conn->query("SELECT slug FROM invitations LIMIT 1");
+    $row = $result->fetch_assoc();
+    if ($row) {
+        $slug = $row['slug'];
+    } else {
+        die('No invitation found.');
+    }
+}
+
+$invitation = getInvitationBySlug($slug);
+if (!$invitation) {
+    die('Invitation not found.');
+}
+
+// CHECK USER STATUS - If user is suspended or pending, don't show invitation
+$user = getUserAdminById($invitation['user_admin_id']);
+
+// Check if user account is active
+if (!$user || $user['account_status'] !== 'active' || $user['is_active'] != 1) {
+    // Account is not active - show a friendly message
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Invitation Unavailable</title>
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'Montserrat', sans-serif;
+                background: linear-gradient(135deg, #f5f0ea, #e8e0d6);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+            .message-container {
+                background: #fff;
+                border-radius: 20px;
+                padding: 60px 40px;
+                max-width: 500px;
+                width: 100%;
+                text-align: center;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            }
+            .message-container .icon {
+                font-size: 64px;
+                color: #bc9c6c;
+                margin-bottom: 20px;
+            }
+            .message-container h1 {
+                font-family: 'Playfair Display', serif;
+                font-size: 28px;
+                color: #1a1a2e;
+                margin-bottom: 12px;
+            }
+            .message-container p {
+                color: #666;
+                font-size: 16px;
+                line-height: 1.6;
+                margin-bottom: 8px;
+            }
+            .message-container .sub-message {
+                color: #999;
+                font-size: 14px;
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 1px solid #e5e0d8;
+            }
+            .message-container .status-badge {
+                display: inline-block;
+                padding: 6px 20px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 600;
+                margin-top: 16px;
+            }
+            .status-suspended {
+                background: #f8d7da;
+                color: #721c24;
+            }
+            .status-pending {
+                background: #fff3cd;
+                color: #856404;
+            }
+            .status-inactive {
+                background: #e2e3e5;
+                color: #383d41;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="message-container">
+            <div class="icon">
+                <i class="fa-regular fa-envelope"></i>
+            </div>
+            <h1>Invitation Unavailable</h1>
+            <p>This wedding invitation is currently not available.</p>
+            
+            <?php if ($user): ?>
+                <?php if ($user['account_status'] === 'suspended'): ?>
+                    <div class="status-badge status-suspended">
+                        <i class="fa-regular fa-ban"></i> Account Suspended
+                    </div>
+                    <p style="margin-top: 16px;">The couple's account has been suspended. Please contact them directly.</p>
+                <?php elseif ($user['account_status'] === 'pending'): ?>
+                    <div class="status-badge status-pending">
+                        <i class="fa-regular fa-clock"></i> Account Pending
+                    </div>
+                    <p style="margin-top: 16px;">This invitation is not yet active. Please check back later.</p>
+                <?php elseif ($user['is_active'] != 1): ?>
+                    <div class="status-badge status-inactive">
+                        <i class="fa-regular fa-circle"></i> Account Inactive
+                    </div>
+                    <p style="margin-top: 16px;">This invitation is currently inactive.</p>
+                <?php endif; ?>
+            <?php else: ?>
+                <div class="status-badge status-inactive">
+                    <i class="fa-regular fa-circle"></i> Account Not Found
+                </div>
+            <?php endif; ?>
+            
+            <div class="sub-message">
+                <i class="fa-regular fa-heart" style="color: #bc9c6c;"></i>
+                <p>If you have questions, please contact the couple directly.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
+// If we get here, the user is active - proceed with the invitation
+$schedule_items = getScheduleItems($invitation['id']);
+
+// Get user features
+$features = getUserFeatures($invitation['user_admin_id']);
+$has_gallery = $features['has_gallery'] ?? 0;
+$has_table_finder = $features['has_table_finder'] ?? 0;
+
+// Get gallery images if enabled
+$gallery_images = $has_gallery ? getGalleryImages($invitation['id']) : [];
+
+// Get table entries if enabled
+$table_entries = $has_table_finder ? getTableFinderEntries($invitation['id']) : [];
+
+// Build config for frontend
+$introConfig = [
+    'video_path' => '../uploads/video/' . ($invitation['intro_video'] ?? 'intro-open.mp4'),
+    'audio_path' => '../uploads/audio/' . ($invitation['intro_audio'] ?? 'intro-music1.mp3'),
+    'couple_names' => $invitation['couple_names'] ?? 'Sahan & Malki',
+    'transition_delay' => 100,
+    'invitation_url' => '../invitation/index.php?slug=' . $invitation['slug'],
+];
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title><?php echo htmlspecialchars($introConfig['couple_names']); ?> - Wedding Invitation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Montserrat:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/intro.css">
+</head>
+<body>
+
+    <script>
+        window.introConfig = <?php echo json_encode($introConfig); ?>;
+    </script>
+
+    <!-- ===== INTRO VIDEO OVERLAY ===== -->
+    <div id="introVideoOverlay" class="intro-overlay">
+        <div class="video-container">
+            <video id="introVideo" class="intro-video" playsinline preload="auto">
+                <source src="<?php echo htmlspecialchars($introConfig['video_path']); ?>" type="video/mp4">
+            </video>
+            <div class="video-overlay-content" id="videoOverlayContent">
+                <div class="video-pulse-ring"></div>
+                <button id="videoPlayBtn" class="video-play-btn">
+                    <!-- <i class="fa-solid fa-play"></i> -->
+                    <!-- <span>Tap to Begin</span> -->
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== LOADING INDICATOR ===== -->
+    <!-- <div id="loadingIndicator" class="loading-indicator state-hidden">
+        <div class="loading-spinner"></div>
+        <p></p>
+    </div> -->
+
+    <script src="assets/js/intro.js"></script>
+</body>
+</html>
